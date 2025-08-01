@@ -5,6 +5,7 @@ export interface QlooConfig {
   apiKey: string;
   baseUrl?: string;
   timeout?: number;
+  environment?: 'production' | 'staging' | 'hackathon';
 }
 
 // Entity types based on Qloo's knowledge graph
@@ -19,7 +20,25 @@ export type EntityCategory =
   | 'travel'
   | 'brands'
   | 'podcasts'
-  | 'people';
+  | 'people'
+  | 'artist'
+  | 'movie'
+  | 'place'
+  | 'brand';
+
+// Entity URN types for API filters
+export const EntityURN = {
+  ARTIST: 'urn:entity:artist',
+  BRAND: 'urn:entity:brand',
+  MOVIE: 'urn:entity:movie',
+  PLACE: 'urn:entity:place',
+  SHOW: 'urn:entity:show',
+  BOOK: 'urn:entity:book',
+  PODCAST: 'urn:entity:podcast',
+  PERSON: 'urn:entity:person',
+} as const;
+
+export type EntityURNType = typeof EntityURN[keyof typeof EntityURN];
 
 // Base entity interface
 export interface QlooEntity {
@@ -61,12 +80,15 @@ export interface SearchResponse {
   };
 }
 
+// Demographics age groups
+export type AgeGroup = '18_to_35' | '36_to_55' | '56_plus' | '13_to_17' | '65_plus';
+
 // Insights parameters
 export interface InsightsParams {
-  filterType: string; // e.g., 'urn:entity:artist'
+  filterType: EntityURNType | string; // e.g., 'urn:entity:artist'
   signal?: {
     demographics?: {
-      age?: string; // e.g., '36_to_55'
+      age?: AgeGroup | string;
       gender?: 'male' | 'female';
       audiences?: string[];
     };
@@ -89,6 +111,10 @@ export interface InsightsParams {
   };
   bias?: {
     trends?: 'off' | 'low' | 'medium' | 'high';
+  };
+  diversify?: {
+    by?: string; // e.g., 'properties.geocode.city'
+    take?: number; // max results per group
   };
   page?: number;
   take?: number;
@@ -141,6 +167,51 @@ export interface QlooTag {
   popularity?: number;
 }
 
+// Audience interface
+export interface QlooAudience {
+  id: string;
+  name: string;
+  type: string;
+  popularity?: number;
+  parentTypes?: string[];
+}
+
+// Audience search parameters
+export interface AudienceSearchParams {
+  parentTypes?: string[];
+  audienceTypes?: string[];
+  audiences?: string[];
+  popularity?: {
+    min?: number;
+    max?: number;
+  };
+  page?: number;
+  take?: number;
+}
+
+// Trending parameters
+export interface TrendingParams {
+  entities: string[];
+  filterType: EntityURNType | string;
+  startDate: string; // ISO 8601 format YYYY-MM-DD
+  endDate: string; // ISO 8601 format YYYY-MM-DD
+  page?: number;
+  take?: number;
+}
+
+// Trending response
+export interface TrendingResponse {
+  results: Array<{
+    entity: QlooEntity;
+    series: Array<{
+      date: string;
+      popularity: number;
+      percentile: number;
+      velocity: number;
+    }>;
+  }>;
+}
+
 
 // Error interface
 export interface QlooError {
@@ -155,8 +226,16 @@ export class QlooApiService {
   private config: QlooConfig;
 
   constructor(config: QlooConfig) {
+    // Determine base URL based on environment
+    let defaultBaseUrl = 'https://api.qloo.com';
+    if (config.environment === 'staging') {
+      defaultBaseUrl = 'https://staging.api.qloo.com';
+    } else if (config.environment === 'hackathon') {
+      defaultBaseUrl = 'https://hackathon.api.qloo.com';
+    }
+
     this.config = {
-      baseUrl: 'https://hackathon.api.qloo.com',
+      baseUrl: defaultBaseUrl,
       timeout: 30000,
       ...config,
     };
@@ -281,6 +360,14 @@ export class QlooApiService {
       // Add bias
       if (params.bias?.trends) {
         queryParams['bias.trends'] = params.bias.trends;
+      }
+
+      // Add diversification
+      if (params.diversify?.by) {
+        queryParams['diversify.by'] = params.diversify.by;
+      }
+      if (params.diversify?.take) {
+        queryParams['diversify.take'] = params.diversify.take;
       }
 
       // Pagination
@@ -408,6 +495,124 @@ export class QlooApiService {
     }
   }
 
+  /**
+   * Get trending data for entities
+   */
+  async getTrending(params: TrendingParams): Promise<TrendingResponse> {
+    try {
+      const queryParams: any = {
+        'signal.interests.entities': params.entities,
+        'filter.type': params.filterType,
+        'filter.start_date': params.startDate,
+        'filter.end_date': params.endDate,
+      };
+
+      if (params.page) {
+        queryParams.page = params.page;
+      }
+      if (params.take) {
+        queryParams.take = params.take;
+      }
+
+      const response: AxiosResponse = await this.client.get('/v2/trending', {
+        params: queryParams,
+      });
+
+      return {
+        results: response.data || [],
+      };
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Search for audiences
+   */
+  async searchAudiences(params: AudienceSearchParams = {}): Promise<{ results: QlooAudience[] }> {
+    try {
+      const queryParams: any = {};
+
+      if (params.parentTypes) {
+        queryParams['filter.parents.types'] = params.parentTypes.join(',');
+      }
+      if (params.audienceTypes) {
+        queryParams['filter.audience.types'] = params.audienceTypes;
+      }
+      if (params.audiences) {
+        queryParams['filter.results.audiences'] = params.audiences;
+      }
+      if (params.popularity?.min) {
+        queryParams['filter.popularity.min'] = params.popularity.min;
+      }
+      if (params.popularity?.max) {
+        queryParams['filter.popularity.max'] = params.popularity.max;
+      }
+      if (params.page) {
+        queryParams.page = params.page;
+      }
+      if (params.take) {
+        queryParams.take = params.take;
+      }
+
+      const response: AxiosResponse = await this.client.get('/v2/audiences', {
+        params: queryParams,
+      });
+
+      return {
+        results: response.data || [],
+      };
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Get audience types
+   */
+  async getAudienceTypes(parentTypes?: string[]): Promise<{ results: Array<{ id: string; name: string }> }> {
+    try {
+      const queryParams: any = {};
+
+      if (parentTypes) {
+        queryParams['filter.parents.types'] = parentTypes.join(',');
+      }
+
+      const response: AxiosResponse = await this.client.get('/v2/audiences/types', {
+        params: queryParams,
+      });
+
+      return {
+        results: response.data || [],
+      };
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Get tag types
+   */
+  async getTagTypes(parentTypes?: string[]): Promise<{ results: Array<{ id: string; name: string }> }> {
+    try {
+      const queryParams: any = {};
+
+      if (parentTypes) {
+        queryParams['filter.parents.types'] = parentTypes.join(',');
+      }
+
+      const response: AxiosResponse = await this.client.get('/v2/tags/types', {
+        params: queryParams,
+      });
+
+      return {
+        results: response.data || [],
+      };
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
 
   // Private helper methods
   private transformSearchResponse(data: any): SearchResponse {
@@ -460,11 +665,32 @@ export class QlooUtils {
   /**
    * Helper to create demographic filters
    */
-  static createDemographics(age?: number, gender?: string, location?: string) {
+  static createDemographics(age?: AgeGroup | string, gender?: 'male' | 'female', location?: string) {
     return {
       age,
-      gender: gender as 'male' | 'female' | 'other',
+      gender,
       location,
+    };
+  }
+
+  /**
+   * Helper to format date for API
+   */
+  static formatDate(date: Date): string {
+    return date.toISOString().split('T')[0];
+  }
+
+  /**
+   * Helper to create date range for trending
+   */
+  static createDateRange(daysBack: number = 30): { startDate: string; endDate: string } {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+    
+    return {
+      startDate: this.formatDate(startDate),
+      endDate: this.formatDate(endDate),
     };
   }
 
@@ -494,3 +720,12 @@ export function createQlooService(apiKey: string, options?: Partial<QlooConfig>)
     ...options,
   });
 }
+
+// Export common age groups for convenience
+export const AgeGroups = {
+  TEEN: '13_to_17' as AgeGroup,
+  YOUNG_ADULT: '18_to_35' as AgeGroup,
+  MIDDLE_AGE: '36_to_55' as AgeGroup,
+  SENIOR: '56_plus' as AgeGroup,
+  ELDERLY: '65_plus' as AgeGroup,
+} as const;

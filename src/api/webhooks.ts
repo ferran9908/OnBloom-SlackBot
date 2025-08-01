@@ -196,9 +196,47 @@ export function createWebhookServer() {
               });
 
               if (conversation.channel?.id) {
+                // Randomly select one of the hardcoded user IDs for the "Say Hi" button
+                const randomUserId = slackUserIds[Math.floor(Math.random() * slackUserIds.length)];
+
                 await slackApp.client.chat.postMessage({
                   channel: conversation.channel.id,
                   text: personalizedMessage,
+                  blocks: [
+                    {
+                      type: 'section',
+                      text: {
+                        type: 'mrkdwn',
+                        text: personalizedMessage
+                      }
+                    },
+                    {
+                      type: 'actions',
+                      elements: [
+                        {
+                          type: 'button',
+                          text: {
+                            type: 'plain_text',
+                            text: 'Say Hi',
+                            emoji: true
+                          },
+                          url: `slack://user?team=${employee.teamId || 'T08B9B5BJDT'}&id=${randomUserId}`,
+                          action_id: 'say_hi'
+                        },
+                        {
+                          type: 'button',
+                          text: {
+                            type: 'plain_text',
+                            text: 'Pick out a gift',
+                            emoji: true
+                          },
+                          url: `https://www.uncommongoods.com/fun/by-recipient/gifts-for-coworkers?employee=${encodeURIComponent(employee.name)}&interests=${encodeURIComponent(person.qlooCommonalities.slice(0, 3).join(','))}`,
+                          action_id: 'pick_gift',
+                          style: 'primary'
+                        }
+                      ]
+                    }
+                  ]
                 });
 
                 console.log(`Sent DM to user ${slackUserIds[i]} for ${person.name}`);
@@ -228,9 +266,47 @@ export function createWebhookServer() {
                 });
 
                 if (conversation.channel?.id) {
+                  // Randomly select one of the hardcoded user IDs for the "Say Hi" button
+                  const randomUserId = slackUserIds[Math.floor(Math.random() * slackUserIds.length)];
+
                   await slackApp.client.chat.postMessage({
                     channel: conversation.channel.id,
                     text: personalizedMessage,
+                    blocks: [
+                      {
+                        type: 'section',
+                        text: {
+                          type: 'mrkdwn',
+                          text: personalizedMessage
+                        }
+                      },
+                      {
+                        type: 'actions',
+                        elements: [
+                          {
+                            type: 'button',
+                            text: {
+                              type: 'plain_text',
+                              text: 'Say Hi',
+                              emoji: true
+                            },
+                            url: `slack://user?team=${employee.teamId || 'T08B9B5BJDT'}&id=${randomUserId}`,
+                            action_id: 'say_hi'
+                          },
+                          {
+                            type: 'button',
+                            text: {
+                              type: 'plain_text',
+                              text: 'Pick out a gift',
+                              emoji: true
+                            },
+                            url: `https://www.uncommongoods.com/fun/by-recipient/gifts-for-coworkers?employee=${encodeURIComponent(employee.name)}&interests=${encodeURIComponent(person.qlooCommonalities.slice(0, 3).join(','))}`,
+                            action_id: 'pick_gift',
+                            style: 'primary'
+                          }
+                        ]
+                      }
+                    ]
                   });
 
                   console.log(`Sent DM to ${person.name} (${person.email})`);
