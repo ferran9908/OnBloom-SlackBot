@@ -11,6 +11,8 @@ const envSchema = z.object({
   QLOO_API_KEY: z.string().min(1),
   NOTION_API_KEY: z.string().min(1),
   NOTION_DATABASE_ID: z.string().min(1),
+  UPSTASH_REDIS_REST_URL: z.string().min(1),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
   PORT: z.string().default('3000').transform(Number),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 });

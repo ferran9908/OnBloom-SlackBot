@@ -85,6 +85,10 @@ function detectCategory(message: string): EntityCategory | undefined {
     brands: ['brand', 'product', 'company'],
     podcasts: ['podcast', 'listen', 'episode'],
     people: ['celebrity', 'influencer', 'person', 'who'],
+    artist: ['artist', 'singer', 'musician', 'performer', 'band'],
+    movie: ['movie', 'film', 'cinema', 'motion picture'],
+    place: ['place', 'location', 'venue', 'spot', 'area'],
+    brand: ['brand', 'label', 'trademark', 'company name'],
   };
 
   for (const [category, keywords] of Object.entries(categoryKeywords)) {

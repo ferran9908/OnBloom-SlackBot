@@ -6,11 +6,15 @@ const openrouter = createOpenRouter({
   apiKey: env.OPENROUTER_API_KEY,
 });
 
-export async function generateResponse(prompt: string): Promise<string> {
+export async function generateResponse(prompt: string, conversationContext?: string): Promise<string> {
   try {
+    const fullPrompt = conversationContext 
+      ? `${conversationContext} ${prompt}`
+      : prompt;
+
     const { text } = await generateText({
       model: openrouter('meta-llama/llama-3.1-8b-instruct'),
-      prompt,
+      prompt: fullPrompt,
       temperature: 0.7,
       maxOutputTokens: 500,
     });
