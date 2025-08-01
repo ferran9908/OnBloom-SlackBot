@@ -9,6 +9,7 @@ export function createWebhookServer() {
 
   // Health check endpoint
   app.get('/health', (req: Request, res: Response) => {
+    console.log("HEALTH CHECK")
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
