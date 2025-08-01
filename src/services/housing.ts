@@ -62,7 +62,7 @@ export class HousingService {
       }, channelId);
 
       return {
-        response: "I'd be happy to help you find housing information! Where are you currently based or looking to move to? Please share your city or region.",
+        response: "I'd be happy to help you find housing information! Where are you looking to move to? Please share your city or region.",
         continueFlow: true,
       };
     }
@@ -102,20 +102,45 @@ export class HousingService {
     // Extract demographics if mentioned
     const demographics = this.extractDemographics(message);
 
-    // Update state with location
+    // Update state with location and immediately process with hardcoded values
     await conversationStateService.updateHousingState(userId, {
-      stage: 'awaiting_preferences',
+      stage: 'complete',
       location,
-      demographics: demographics.age || demographics.ethnicity ? demographics : undefined,
+      demographics: { age: '25' },
+      preferences: ['vibrant'],
     }, channelId);
 
-    return {
-      response: `Great! I'll help you find housing in ${location}. To give you the best recommendations, could you tell me:
-- What's your age range?
-- What kind of neighborhood are you looking for? (e.g., quiet, vibrant, family-friendly, walkable, diverse)
-- Any specific preferences or must-haves?`,
-      continueFlow: true,
-    };
+    try {
+      // Now make the Qloo API call with hardcoded information
+      const params: HousingQueryParams = {
+        location: location,
+        ageRange: '25-29',
+        preferences: ['vibrant'],
+      };
+
+      const qlooData = await this.getHousingRecommendations(params);
+      const response = await this.generateHousingResponse(
+        `Looking for housing in ${location}`,
+        params,
+        qlooData
+      );
+
+      // Clear the state after successful completion
+      await conversationStateService.clearHousingState(userId, channelId);
+
+      return {
+        response,
+        continueFlow: false,
+      };
+    } catch (error) {
+      console.error('Error generating housing recommendations:', error);
+      await conversationStateService.clearHousingState(userId, channelId);
+      
+      return {
+        response: "I apologize, but I had trouble getting housing recommendations. Let me try to help you with general advice about finding housing in " + location + ".",
+        continueFlow: false,
+      };
+    }
   }
 
   private async handlePreferencesStage(
@@ -124,9 +149,11 @@ export class HousingService {
     state: HousingConversationState,
     channelId?: string
   ): Promise<{ response: string; continueFlow: boolean }> {
-    // Extract demographics and preferences from message
-    const demographics = this.extractDemographics(message);
-    const preferences = this.extractPreferences(message);
+    // Hardcode age to 25 and preference to vibrant
+    const demographics = {
+      age: '25',
+    };
+    const preferences = ['vibrant'];
 
     // Merge with existing state
     const finalDemographics = {
@@ -524,13 +551,20 @@ Response:`;
   private convertToAgeGroup(ageRange?: string): AgeGroup | undefined {
     if (!ageRange) return undefined;
 
+    // Handle specific age ranges that Qloo expects
+    if (ageRange === '25-29' || ageRange === '25') return '25_to_29' as any;
+    
     const age = parseInt(ageRange.split('-')[0]);
     
-    if (age < 18) return '13_to_17';
-    if (age < 36) return '18_to_35';
-    if (age < 56) return '36_to_55';
-    if (age < 65) return '56_plus';
-    return '65_plus';
+    if (age <= 24) return '24_and_younger' as any;
+    if (age >= 25 && age <= 29) return '25_to_29' as any;
+    if (age >= 30 && age <= 34) return '30_to_34' as any;
+    if (age >= 35 && age <= 44) return '35_to_44' as any;
+    if (age >= 45 && age <= 54) return '45_to_54' as any;
+    if (age >= 55) return '55_and_older' as any;
+    
+    // Default to young adult if can't determine
+    return '25_to_29' as any;
   }
 
   /**
