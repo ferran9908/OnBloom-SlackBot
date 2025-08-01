@@ -227,9 +227,9 @@ export class QlooApiService {
 
   constructor(config: QlooConfig) {
     // Determine base URL based on environment
-    let defaultBaseUrl = 'https://api.qloo.com';
+    let defaultBaseUrl = 'https://hackathon.api.qloo.com';
     if (config.environment === 'staging') {
-      defaultBaseUrl = 'https://staging.api.qloo.com';
+      defaultBaseUrl = 'https://hackathon.api.qloo.com';
     } else if (config.environment === 'hackathon') {
       defaultBaseUrl = 'https://hackathon.api.qloo.com';
     }
@@ -630,7 +630,7 @@ export class QlooApiService {
       console.error(`Failed Params:`, error.config?.params);
       console.error('Full error response:');
       console.dir(error.response.data, { depth: null });
-      
+
       return {
         code: error.response.status.toString(),
         message: error.response.data?.message || error.message,
@@ -640,7 +640,7 @@ export class QlooApiService {
       console.error('Qloo API Network Error');
       console.error(`Failed URL: ${error.config?.url}`);
       console.dir(error.request, { depth: null });
-      
+
       return {
         code: 'NETWORK_ERROR',
         message: 'Network error occurred',
@@ -650,7 +650,7 @@ export class QlooApiService {
       console.error('Qloo API Unknown Error');
       console.error('Full error:');
       console.dir(error, { depth: null });
-      
+
       return {
         code: 'UNKNOWN_ERROR',
         message: error.message || 'An unknown error occurred',
@@ -687,7 +687,7 @@ export class QlooUtils {
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysBack);
-    
+
     return {
       startDate: this.formatDate(startDate),
       endDate: this.formatDate(endDate),

@@ -1,6 +1,57 @@
 import { app } from './bot.js';
 import { generateResponse } from '../ai/llm.js';
 import { memoryService } from '../services/memory.js';
+import { HousingService } from '../services/housing.js';
+import { conversationStateService } from '../services/conversation-state.js';
+import { env } from '../env.js';
+
+// Initialize housing service
+const housingService = new HousingService(env.QLOO_API_KEY);
+
+// Command detection
+function detectCommand(message: string): string | null {
+  const lowerMessage = message.toLowerCase().trim();
+  
+  // Check for clear/reset commands
+  if (lowerMessage === 'clear' || 
+      lowerMessage === 'reset' || 
+      lowerMessage === 'new chat' || 
+      lowerMessage === 'start over' ||
+      lowerMessage === 'clear chat' ||
+      lowerMessage === 'reset conversation') {
+    return 'clear';
+  }
+  
+  // Check for help command
+  if (lowerMessage === 'help' || lowerMessage === '/help') {
+    return 'help';
+  }
+  
+  return null;
+}
+
+async function handleHousingInteraction(
+  userId: string,
+  userMessage: string,
+  channelId?: string
+): Promise<{ response: string | null; isHousingFlow: boolean }> {
+  try {
+    const result = await housingService.handleHousingConversation(
+      userId,
+      userMessage,
+      channelId
+    );
+
+    if (result.response) {
+      return { response: result.response, isHousingFlow: true };
+    }
+
+    return { response: null, isHousingFlow: false };
+  } catch (error) {
+    console.error('Error in housing interaction:', error);
+    return { response: null, isHousingFlow: false };
+  }
+}
 
 export function registerHandlers() {
   // Handle app mentions
@@ -13,14 +64,57 @@ export function registerHandlers() {
       const cleanText = evt.text.replace(/<@[A-Z0-9]+>/g, '').trim();
       
       if (!cleanText) {
-        await say('Hi! How can I help you today?');
+        await say({
+          text: 'Hi! How can I help you today? Type "help" to see what I can do!',
+          thread_ts: evt.thread_ts || evt.ts,
+        });
         return;
       }
       
-      // Get conversation history
+      // Check for commands first
+      const command = detectCommand(cleanText);
+      
+      if (command === 'clear') {
+        const channelId = evt.channel;
+        await memoryService.clearConversation(evt.user, channelId);
+        await conversationStateService.clearHousingState(evt.user, channelId);
+        await say({
+          text: "✨ I've cleared our conversation history. Let's start fresh! How can I help you today?",
+          thread_ts: evt.thread_ts || evt.ts,
+        });
+        return;
+      }
+      
+      if (command === 'help') {
+        await say({
+          text: `Here's what I can help you with:
+
+💬 **General conversation** - Just chat with me naturally!
+🏠 **Housing recommendations** - Ask me about neighborhoods, where to live, or housing options
+🔄 **Clear conversation** - Say "clear", "reset", or "new chat" to start fresh
+💡 **Get recommendations** - Ask about restaurants, movies, music, and more
+
+Just mention me and ask away!`,
+          thread_ts: evt.thread_ts || evt.ts,
+        });
+        return;
+      }
+      
+      // Check if this is part of a housing conversation flow
       const channelId = evt.channel;
-      const history = await memoryService.getConversationHistory(evt.user, channelId);
-      const conversationContext = memoryService.formatMessagesForPrompt(history);
+      const housingResult = await handleHousingInteraction(evt.user, cleanText, channelId);
+      
+      let response: string;
+      if (housingResult.response) {
+        response = housingResult.response;
+      } else {
+        // Get conversation history for standard flow
+        const history = await memoryService.getConversationHistory(evt.user, channelId);
+        const conversationContext = memoryService.formatMessagesForPrompt(history);
+        
+        // Generate standard AI response with context
+        response = await generateResponse(cleanText, conversationContext);
+      }
       
       // Add user message to history
       await memoryService.addMessage(evt.user, {
@@ -28,9 +122,6 @@ export function registerHandlers() {
         content: cleanText,
         timestamp: Date.now()
       }, channelId);
-      
-      // Generate AI response with context
-      const response = await generateResponse(cleanText, conversationContext);
       
       // Add assistant response to history
       await memoryService.addMessage(evt.user, {
@@ -60,9 +151,42 @@ export function registerHandlers() {
       const userId = (message as any).user;
       console.log(`Received DM: ${text}`);
       
-      // Get conversation history for DM
-      const history = await memoryService.getConversationHistory(userId);
-      const conversationContext = memoryService.formatMessagesForPrompt(history);
+      // Check for commands first
+      const command = detectCommand(text);
+      
+      if (command === 'clear') {
+        await memoryService.clearConversation(userId);
+        await conversationStateService.clearHousingState(userId);
+        await say("✨ I've cleared our conversation history. Let's start fresh! How can I help you today?");
+        return;
+      }
+      
+      if (command === 'help') {
+        await say(`Here's what I can help you with:
+
+💬 **General conversation** - Just chat with me naturally!
+🏠 **Housing recommendations** - Ask me about neighborhoods, where to live, or housing options
+🔄 **Clear conversation** - Say "clear", "reset", or "new chat" to start fresh
+💡 **Get recommendations** - Ask about restaurants, movies, music, and more
+
+What would you like to know?`);
+        return;
+      }
+      
+      // Check if this is part of a housing conversation flow
+      const housingResult = await handleHousingInteraction(userId, text);
+      
+      let response: string;
+      if (housingResult.response) {
+        response = housingResult.response;
+      } else {
+        // Get conversation history for standard flow
+        const history = await memoryService.getConversationHistory(userId);
+        const conversationContext = memoryService.formatMessagesForPrompt(history);
+        
+        // Generate standard AI response with context
+        response = await generateResponse(text, conversationContext);
+      }
       
       // Add user message to history
       await memoryService.addMessage(userId, {
@@ -70,9 +194,6 @@ export function registerHandlers() {
         content: text,
         timestamp: Date.now()
       });
-      
-      // Generate AI response with context
-      const response = await generateResponse(text, conversationContext);
       
       // Add assistant response to history
       await memoryService.addMessage(userId, {
