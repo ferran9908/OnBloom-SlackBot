@@ -376,5 +376,56 @@ export function createWebhookServer() {
     }
   });
 
+  // New endpoint to send a message to one of three users
+  app.post('/send-message', async (req: Request, res: Response) => {
+    try {
+      const { message, userId } = req.body;
+
+      if (!message) {
+        return res.status(400).json({ error: 'Missing message field' });
+      }
+
+      // Three hardcoded user IDs
+      // const userIds = ['U08AXKYCG87', 'U08C10NAA0G', 'U08BQSPHAQH'];
+
+      // Randomly select one of the three user IDs
+      const selectedUserId = userId
+
+      try {
+        // Open a DM conversation with the selected user
+        const conversation = await slackApp.client.conversations.open({
+          users: selectedUserId
+        });
+
+        if (conversation.channel?.id) {
+          // Send the message
+          await slackApp.client.chat.postMessage({
+            channel: conversation.channel.id,
+            text: message
+          });
+
+          console.log(`Message sent to user ${selectedUserId}`);
+
+          res.json({
+            success: true,
+            userId: selectedUserId,
+            message: 'Message sent successfully'
+          });
+        } else {
+          throw new Error('Could not open conversation');
+        }
+      } catch (error: any) {
+        console.error(`Error sending message to ${selectedUserId}:`, error.message);
+        res.status(500).json({
+          error: 'Failed to send message',
+          details: error.message
+        });
+      }
+    } catch (error) {
+      console.error('Send message error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   return app;
 }
