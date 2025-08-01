@@ -300,7 +300,7 @@ export function createWebhookServer() {
                               text: 'Pick out a gift',
                               emoji: true
                             },
-                            url: `https://www.uncommongoods.com/fun/by-recipient/gifts-for-coworkers?employee=${encodeURIComponent(employee.name)}&interests=${encodeURIComponent(person.qlooCommonalities.slice(0, 3).join(','))}`,
+                            url: `http://localhost:3000/hr/pick-gift`,
                             action_id: 'pick_gift',
                             style: 'primary'
                           }
