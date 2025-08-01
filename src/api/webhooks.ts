@@ -1,9 +1,18 @@
 import express from 'express';
 import type { Request, Response } from 'express';
+import cors from 'cors';
 import { env } from '../env.js';
 
 export function createWebhookServer() {
   const app = express();
+
+  // Enable CORS for all origins (you can restrict this later)
+  app.use(cors({
+    origin: 'http://localhost:3000', // Allow requests from your frontend
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+  }));
 
   app.use(express.json());
 
