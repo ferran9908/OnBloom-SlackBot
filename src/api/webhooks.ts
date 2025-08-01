@@ -15,7 +15,8 @@ export function createWebhookServer() {
   // Webhook endpoint for external integrations
   app.post('/introductions', async (req: Request, res: Response) => {
     try {
-      console.log('Received webhook:', req.body);
+      console.log('Received webhook');
+      console.dir({ body: req.body }, { depth: null })
 
       // Add your webhook processing logic here
       // For example, you might want to send a message to a Slack channel
